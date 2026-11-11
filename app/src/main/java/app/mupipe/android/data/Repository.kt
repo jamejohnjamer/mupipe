@@ -7,6 +7,7 @@ import app.mupipe.android.data.model.ChannelItem
 import app.mupipe.android.data.model.PlaylistItem
 import app.mupipe.android.data.model.SearchFilters
 import app.mupipe.android.data.model.VideoItem
+import app.mupipe.android.data.provider.RssEntry
 import app.mupipe.android.data.provider.RssParser
 import app.mupipe.android.data.provider.SearchFilterMapper
 import app.mupipe.android.util.ImportParser
@@ -81,7 +82,7 @@ class Repository(private val container: AppContainer) {
         }
 
     /** RSS refresh for one channel. Returns new entries only (dedup by videoId). */
-    suspend fun refreshChannelRss(channelId: String): Result<List<RssParser.RssEntry>> =
+    suspend fun refreshChannelRss(channelId: String): Result<List<RssEntry>> =
         withContext(container.ioDispatcher) {
             runCatching {
                 val req = Request.Builder().url(RssParser.feedUrlForChannel(channelId)).build()
@@ -133,7 +134,7 @@ class Repository(private val container: AppContainer) {
 
     data class ImportResult(val imported: Int, val duplicates: List<String>, val unresolved: List<String>)
 
-    suspend fun recordUploads(channelId: String, channelName: String, groupId: Long?, entries: List<RssParser.RssEntry>) {
+    suspend fun recordUploads(channelId: String, channelName: String, groupId: Long?, entries: List<RssEntry>) {
         withContext(container.ioDispatcher) {
             val now = System.currentTimeMillis()
             db.uploadHistoryDao().insertAll(entries.map {
