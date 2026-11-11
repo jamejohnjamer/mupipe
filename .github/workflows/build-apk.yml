@@ -7,7 +7,12 @@
 # run "Build MuPipe APK", download the app-debug.apk artifact, sideload
 # it on the Tecno. local.properties is removed first because it points
 # sdk.dir at the Muse VM path (/home/hatch/workspace/mupipe/android-sdk),
-# which does not exist on the runner; setup-android sets ANDROID_HOME.
+# which does not exist on the runner; the runner already has ANDROID_HOME.
+# NOTE (2026-11-11): android-actions/setup-android@v3 was REMOVED.
+# Its first run failed because it runs `sdkmanager tools`, and Google
+# removed the old "tools" package — "Failed to find package 'tools'".
+# The SDK is now set up by hand with cmdline-tools, which the runner
+# already has; the download below is only a fallback if it is missing.
 name: Build MuPipe APK
 
 on:
@@ -29,14 +34,20 @@ jobs:
           java-version: "17"
 
       - name: Set up Android SDK 34
-        uses: android-actions/setup-android@v3
+        run: |
+          if [ ! -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            mkdir -p "$ANDROID_HOME/cmdline-tools"
+            cd "$ANDROID_HOME/cmdline-tools"
+            curl -sS -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q cmdline-tools.zip
+            mv cmdline-tools latest
+            rm cmdline-tools.zip
+          fi
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Remove VM-only SDK path
         run: rm -f local.properties
-
-      - name: Install Android platform 34 and build-tools
-        run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Make Gradle wrapper executable
         # Files uploaded through the GitHub web page lose their
