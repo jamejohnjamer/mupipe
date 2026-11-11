@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MuPipe</string>
+    <string name="tagline">Discover, subscribe, download — no player inside.</string>
+</resources>
