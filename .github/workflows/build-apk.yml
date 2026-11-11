@@ -1,0 +1,57 @@
+# MuPipe — build the debug APK in the cloud (GitHub Actions, free tier).
+# Why: Gradle cannot run in the Muse VM (Java TCP is intercepted there),
+# and the user asked not to install complicated dev tools on their PC.
+# This builds the same source on GitHub's runner and returns the APK
+# as a downloadable artifact. No Play Store, no signing, debug APK only.
+# Usage: upload this android/ folder to a GitHub repo, open Actions,
+# run "Build MuPipe APK", download the app-debug.apk artifact, sideload
+# it on the Tecno. local.properties is removed first because it points
+# sdk.dir at the Muse VM path (/home/hatch/workspace/mupipe/android-sdk),
+# which does not exist on the runner; setup-android sets ANDROID_HOME.
+name: Build MuPipe APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK 34
+        uses: android-actions/setup-android@v3
+
+      - name: Remove VM-only SDK path
+        run: rm -f local.properties
+
+      - name: Install Android platform 34 and build-tools
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Make Gradle wrapper executable
+        # Files uploaded through the GitHub web page lose their
+        # executable bit, so ./gradlew would fail with "Permission denied".
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mupipe-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
