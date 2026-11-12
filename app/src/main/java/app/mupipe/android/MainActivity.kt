@@ -3,13 +3,18 @@ package app.mupipe.android
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -38,6 +43,7 @@ import app.mupipe.android.ui.screens.SettingsScreen
 import app.mupipe.android.ui.screens.SubscriptionsScreen
 import app.mupipe.android.ui.theme.MuPipeTheme
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Single activity. Saved state holds only small IDs (route strings),
@@ -48,7 +54,38 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val container = (application as MuPipeApp).container
+        val app = application as MuPipeApp
+        val container = app.container
+        if (container == null) {
+            // Startup failed in the Application class: show the exact error
+            // on screen instead of crashing, so it can be reported.
+            setContent {
+                MuPipeTheme {
+                    val crashText = runCatching {
+                        File(getExternalFilesDir(null), "mupipe-crash.txt").readText()
+                    }.getOrNull()
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(16.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text("MuPipe could not start.", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            app.containerError?.toString() ?: "Unknown startup error",
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                        if (crashText != null) {
+                            Text("Last crash:", modifier = Modifier.padding(top = 12.dp))
+                            Text(crashText.take(3000))
+                        }
+                        Text(
+                            "Please send a screenshot of this screen to support.",
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
+                }
+            }
+            return
+        }
         setContent {
             MuPipeTheme {
                 val nav = rememberNavController()
