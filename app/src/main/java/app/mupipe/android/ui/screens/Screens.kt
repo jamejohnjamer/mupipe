@@ -76,8 +76,8 @@ fun VideoDetailsDialog(video: VideoItem, container: AppContainer, onDismiss: () 
                 TextButton(onClick = onDismiss) { Text("Close") }
                 if (streamUrl != null) TextButton(onClick = {
                     scope.launch {
-                        container.downloadManager.queue(video.videoId, video.title, streamUrl!!, false)
-                        onDismiss()
+                        val ok = container.downloadManager.queue(video.videoId, video.title, streamUrl!!, false)
+                        if (ok) onDismiss() else message = "Download could not start on this device."
                     }
                 }) { Text("Download") }
             }
@@ -141,7 +141,7 @@ fun SearchScreen(container: AppContainer, onVideo: (VideoItem) -> Unit) {
             var expanded2 by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = expanded2, onExpandedChange = { expanded2 = it }, modifier = Modifier.weight(1f)) {
                 OutlinedTextField(value = filters.sort, onValueChange = {}, readOnly = true, label = { Text("Sort (server)") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded2) }, modifier = Modifier.menuAnchor().fillMaxWidth())
-                ExposedDropdownMenu(expanded = expanded2, onDismissRequest = { expanded2 = false }) {
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded2 = false }) {
                     SearchFilters.SORT_OPTIONS.forEach { s ->
                         DropdownMenuItem(text = { Text(s) }, onClick = { filters = filters.copy(sort = s); expanded2 = false })
                     }
