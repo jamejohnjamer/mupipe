@@ -21,10 +21,20 @@ import java.util.concurrent.TimeUnit
  * User-paused downloads are never enqueued again automatically.
  */
 class DownloadManager(context: Context, private val db: MuPipeDatabase) {
-    private val workManager = WorkManager.getInstance(context)
     private val appContext = context.applicationContext
 
+    /**
+     * WorkManager is fetched lazily and never in the constructor: calling
+     * WorkManager.getInstance() during Application.onCreate has crashed
+     * on some devices, which killed the app before it could even open.
+     * If it is unavailable, queue() reports false instead of crashing.
+     */
+    private val workManager: WorkManager? by lazy {
+        runCatching { WorkManager.getInstance(appContext) }.getOrNull()
+    }
+
     suspend fun queue(videoId: String, title: String, url: String, audioOnly: Boolean): Boolean {
+        val wm = workManager ?: return false
         if (db.downloadDao().byId(videoId) != null) return false // duplicate guard
         val safeName = title.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80).ifBlank { videoId }
         val fileName = if (audioOnly) "$safeName.m4a" else "$safeName.mp4"
@@ -42,12 +52,14 @@ class DownloadManager(context: Context, private val db: MuPipeDatabase) {
             .addTag("mupipe-downloads")
             .build()
         // Unique work per video: KEEP an existing job, never duplicate it.
-        workManager.enqueueUniqueWork("dl-$videoId", ExistingWorkPolicy.KEEP, request)
+        runCatching {
+            wm.enqueueUniqueWork("dl-$videoId", ExistingWorkPolicy.KEEP, request)
+        }.getOrElse { return false }
         return true
     }
 
     suspend fun pause(videoId: String) {
-        workManager.cancelUniqueWork("dl-$videoId")
+        workManager?.cancelUniqueWork("dl-$videoId")
         db.downloadDao().byId(videoId)?.let {
             db.downloadDao().update(it.copy(state = "PausedByUser", updatedAtMillis = System.currentTimeMillis()))
         }
@@ -56,6 +68,7 @@ class DownloadManager(context: Context, private val db: MuPipeDatabase) {
     suspend fun resume(videoId: String) {
         val item = db.downloadDao().byId(videoId) ?: return
         if (item.state != "PausedByUser" && item.state != "Failed") return
+        val wm = workManager ?: return
         db.downloadDao().update(item.copy(state = "Queued", updatedAtMillis = System.currentTimeMillis()))
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(workDataOf(
@@ -67,6 +80,6 @@ class DownloadManager(context: Context, private val db: MuPipeDatabase) {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .addTag("mupipe-downloads")
             .build()
-        workManager.enqueueUniqueWork("dl-$videoId", ExistingWorkPolicy.REPLACE, request)
+        runCatching { wm.enqueueUniqueWork("dl-$videoId", ExistingWorkPolicy.REPLACE, request) }
     }
 }
