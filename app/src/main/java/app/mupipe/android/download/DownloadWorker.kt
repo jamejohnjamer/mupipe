@@ -34,7 +34,8 @@ class DownloadWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         val url = inputData.getString(KEY_URL) ?: return Result.failure()
         val fileName = inputData.getString(KEY_FILE_NAME) ?: "$videoId.bin"
         val app = applicationContext as MuPipeApp
-        val dao = app.container.db.downloadDao()
+        val db = app.container?.db ?: return Result.failure()
+        val dao = db.downloadDao()
         val existing = dao.byId(videoId) ?: return Result.failure()
         if (existing.state == "PausedByUser") return Result.success() // never resume a paused job
         if (existing.retryCount >= MAX_RETRIES) {
